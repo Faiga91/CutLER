@@ -47,7 +47,7 @@ _PREDEFINED_SPLITS_COCO_CA["coco_cls_agnostic"] = {
 _PREDEFINED_SPLITS_IMAGENET = {}
 _PREDEFINED_SPLITS_IMAGENET["imagenet"] = {
     # maskcut annotations
-    "imagenet_train": ("imagenet/train", "imagenet/annotations/imagenet_train_fixsize480_tau0.15_N3.json"),
+    "imagenet_train": ("imagenet/train", "imagenet/annotations/imagenet_train_fixsize480_tau0.15_N1.json"),
     # self-training round 1
     "imagenet_train_r1": ("imagenet/train", "imagenet/annotations/cutler_imagenet1k_train_r1.json"),
     # self-training round 2
