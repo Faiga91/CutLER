@@ -433,9 +433,16 @@ def annotations_to_instances(annos, image_size, mask_format="polygon"):
                         " in a 2D numpy array of shape HxW.".format(type(segm))
                     )
             # torch.from_numpy does not support array with negative stride.
+            #masks = BitMasks(
+            #    torch.stack([torch.from_numpy(np.ascontiguousarray(x)) for x in masks])
+            #)
+
+            # ensure the array is writable
             masks = BitMasks(
-                torch.stack([torch.from_numpy(np.ascontiguousarray(x)) for x in masks])
+                    torch.stack([torch.from_numpy(np.copy(x) if not x.flags.writeable else np.ascontiguousarray(x)) for x in masks])
             )
+
+
         target.gt_masks = masks
 
     if len(annos) and "keypoints" in annos[0]:
