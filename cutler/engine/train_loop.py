@@ -331,7 +331,7 @@ class CustomAMPTrainer(CustomSimpleTrainer):
             data = self.copy_and_paste(copy.deepcopy(data[::-1]), data)
         data_time = time.perf_counter() - start
 
-        with autocast():
+        with torch.amp.autocast('cuda'):
             loss_dict = self.model(data)
             if isinstance(loss_dict, torch.Tensor):
                 losses = loss_dict

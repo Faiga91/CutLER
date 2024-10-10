@@ -149,7 +149,7 @@ if __name__ == "__main__":
             vid_frames.append(img)
 
         start_time = time.time()
-        with autocast():
+        with torch.amp.autocast('cuda'):
             predictions, visualized_output = demo.run_on_video(vid_frames, confidence_threshold=args.confidence_threshold)
 
         selected_idx = [idx for idx, score in enumerate(predictions["pred_scores"]) if score >= args.confidence_threshold]
@@ -201,7 +201,7 @@ if __name__ == "__main__":
                 break
 
         start_time = time.time()
-        with autocast():
+        with torch.amp.autocast('cuda'):
             predictions, visualized_output = demo.run_on_video(vid_frames)
         logger.info(
             "detected {} instances per frame in {:.2f}s".format(
