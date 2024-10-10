@@ -214,3 +214,11 @@ register_all_kitti(_root)
 register_all_openimages(_root)
 register_all_objects365(_root)
 register_all_lvis(_root)
+
+# Register custum dataset 
+register_coco_instances(
+    "labeled_video_frames",
+    {}, 
+    "/home/faiga/ColoCompare/data/OUS-Study-2019/test_video/coco_annotations.json",
+    "/home/faiga/ColoCompare/data/OUS-Study-2019/test_video" 
+)
