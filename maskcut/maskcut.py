@@ -31,6 +31,15 @@ from TokenCut.unsupervised_saliency_detection.object_discovery import detect_box
 # crf codes are are modfied based on https://github.com/lucasb-eyer/pydensecrf/blob/master/pydensecrf/tests/test_dcrf.py
 from crf import densecrf
 
+import logging
+
+logging.basicConfig(
+    level=logging.DEBUG,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+)
+
+logger = logging.getLogger(__name__)
+
 # Image transformation applied to all images
 ToTensor = transforms.Compose([transforms.ToTensor(),
                                transforms.Normalize(
@@ -339,10 +348,11 @@ if __name__ == "__main__":
     backbone = dino.ViTFeat(url, feat_dim, args.vit_arch, args.vit_feat, args.patch_size)
 
     msg = 'Load {} pre-trained feature...'.format(args.vit_arch)
-    print (msg)
+    logger.info(msg)
     backbone.eval()
     if not args.cpu:
         backbone.cuda()
+        logger.info('Using GPU...')
 
     img_folders = os.listdir(args.dataset_path)
 
@@ -366,7 +376,7 @@ if __name__ == "__main__":
                 bipartitions, _, I_new = maskcut(img_path, backbone, args.patch_size, \
                     args.tau, N=args.N, fixed_size=args.fixed_size, cpu=args.cpu)
             except:
-                print(f'Skipping {img_name}')
+                logger.info(f'Skipping {img_name}')
                 continue
 
             I = Image.open(img_path).convert('RGB')
@@ -382,6 +392,7 @@ if __name__ == "__main__":
                 if not args.cpu: 
                     mask1 = mask1.cuda()
                     mask2 = mask2.cuda()
+                    logger.info('Using GPU...')
                 if metric.IoU(mask1, mask2) < 0.5:
                     pseudo_mask = pseudo_mask * -1
 
@@ -412,5 +423,5 @@ if __name__ == "__main__":
         json_name = '{}/imagenet_train_fixsize{}_tau{}_N{}_{}_{}.json'.format(args.out_dir, args.fixed_size, args.tau, args.N, start_idx, end_idx)
     with open(json_name, 'w') as output_json_file:
         json.dump(output, output_json_file)
-    print(f'dumping {json_name}')
-    print("Done: {} images; {} anns.".format(len(output['images']), len(output['annotations'])))
+    logger.info(f'dumping {json_name}')
+    logger.info("Done: {} images; {} anns.".format(len(output['images']), len(output['annotations'])))
