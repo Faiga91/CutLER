@@ -45,6 +45,13 @@ from detectron2.modeling import GeneralizedRCNNWithTTA
 import data # register new datasets
 import modeling.roi_heads
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+)
+
+logger = logging.getLogger(__name__)
+
 def build_evaluator(cfg, dataset_name, output_folder=None):
     """
     Create evaluator(s) for a given dataset.
@@ -134,6 +141,7 @@ def setup(args):
 def main(args):
     cfg = setup(args)
 
+    """
     if args.eval_only:
         model = Trainer.build_model(cfg)
         DetectionCheckpointer(model, save_dir=cfg.OUTPUT_DIR).resume_or_load(
@@ -145,7 +153,7 @@ def main(args):
         if comm.is_main_process():
             verify_results(cfg, res)
         return res
-
+    """
     """
     If you'd like to do anything fancier than the standard training logic,
     consider writing your own training loop (see plain_train_net.py) or
