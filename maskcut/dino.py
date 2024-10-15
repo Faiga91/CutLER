@@ -11,6 +11,16 @@ from functools import partial
 import torch
 import torch.nn as nn
 
+import logging
+
+logging.basicConfig(
+    level=logging.DEBUG,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    force = True
+)
+
+logger = logging.getLogger(__name__)
+
 def _no_grad_trunc_normal_(tensor, mean, std, a, b):
     # Cut & paste from PyTorch official master until it's in a few official releases - RW
     # Method based on https://people.sc.fsu.edu/~jburkardt/presentations/truncated_normal.pdf
@@ -291,8 +301,8 @@ class ViTFeat(nn.Module):
 #        state_dict = torch.load(pretrained_pth, map_location="cpu")
         state_dict = torch.hub.load_state_dict_from_url(pretrained_pth)
         self.model.load_state_dict(state_dict, strict=True)
-        print('Loading weight from {}'.format(pretrained_pth))
-
+        logger.info('Loading weight from {}'.format(pretrained_pth))
+        logger.info('ViT model loaded')
 
     def forward(self, img) :
         feat_out = {}
@@ -337,10 +347,9 @@ class ViTFeat(nn.Module):
 if __name__ == "__main__":
     vit_arch = 'base'
     vit_feat = 'k'
-
     model = ViTFeat(vit_arch, vit_feat)
     img = torch.cuda.FloatTensor(4, 3, 224, 224)
     model.cuda()
     # Forward pass in the model
     feat = model(img)
-    print (feat.shape)
+    logger.info(feat.shape)
