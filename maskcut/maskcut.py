@@ -17,7 +17,7 @@ from torchvision import transforms
 from pycocotools import mask
 import pycocotools.mask as mask_util
 from scipy import ndimage
-from scipy.linalg import eigh
+import torch.linalg as linalg
 import json
 
 import dino
@@ -35,7 +35,8 @@ import logging
 
 logging.basicConfig(
     level=logging.DEBUG,
-    format="%(asctime)s - %(levelname)s - %(message)s",
+    format="%(asctime)s - %(levelname)s - %(message)s [%(filename)s:%(lineno)d]",
+
 )
 
 logger = logging.getLogger(__name__)
@@ -57,16 +58,41 @@ def get_affinity_matrix(feats, tau, eps=1e-5):
     D = np.diag(d_i)
     return A, D
 
-def second_smallest_eigenvector(A, D):
+def second_smallest_eigenvector(A, D, cpu=False):
     # get the second smallest eigenvector from affinity matrix
-    _, eigenvectors = eigh(D-A, D, subset_by_index=[1,2])
-    eigenvec = np.copy(eigenvectors[:, 0])
-    second_smallest_vec = eigenvectors[:, 0]
+    if not isinstance(D, torch.Tensor):
+        D = torch.tensor(D, dtype=torch.float32)
+    
+    if not isinstance(A, torch.Tensor):
+        A = torch.tensor(A, dtype=torch.float32)
+
+    if not cpu:
+            D = D.cuda()
+            A = A.cuda()
+
+    try:
+        L = linalg.cholesky(D)
+        L_inv = linalg.inv(L)
+        C = L_inv @ (D - A) @ L_inv.T
+        _, eigenvectors = linalg.eig(C)
+        eigenvec = eigenvectors[:, 0]
+        second_smallest_vec = eigenvectors[:, 1]
+    
+    except Exception as e:
+        logger.error(f'Error: {e}')
+        logger.error('Failed to compute the second smallest eigenvector.')
+        return None, None
+    
+    #eigenvec = np.copy(eigenvectors[:, 0])
+    #second_smallest_vec = eigenvectors[:, 0]
     return eigenvec, second_smallest_vec
 
 def get_salient_areas(second_smallest_vec):
-    # get the area corresponding to salient objects.
-    avg = np.sum(second_smallest_vec) / len(second_smallest_vec)
+    """get the area corresponding to salient objects."""
+    if torch.is_complex(second_smallest_vec):
+        second_smallest_vec = torch.abs(second_smallest_vec)
+    
+    avg = torch.sum(second_smallest_vec) / len(second_smallest_vec)
     bipartition = second_smallest_vec > avg
     return bipartition
 
@@ -111,13 +137,21 @@ def maskcut_forward(feats, dims, scales, init_image_size, tau=0, N=3, cpu=False)
         # construct the affinity matrix
         A, D = get_affinity_matrix(feats, tau)
         # get the second smallest eigenvector
-        eigenvec, second_smallest_vec = second_smallest_eigenvector(A, D)
+        eigenvec, second_smallest_vec = second_smallest_eigenvector(A, D, cpu=cpu)
         # get salient area
-        bipartition = get_salient_areas(second_smallest_vec)
+        try:
+            bipartition = get_salient_areas(second_smallest_vec)
+        except Exception as e:
+            logger.error('Failed to get salient areas.')
+            logger.error(f'Error: {e}')
+            return None, None, None
 
         # check if we should reverse the partition based on:
         # 1) peak of the 2nd smallest eigvec 2) object centric bias
-        seed = np.argmax(np.abs(second_smallest_vec))
+        if torch.is_complex(second_smallest_vec):
+            second_smallest_vec = torch.abs(second_smallest_vec)
+
+        seed = torch.argmax(second_smallest_vec).item()
         nc = check_num_fg_corners(bipartition, dims)
         if nc >= 3:
             reverse = True
@@ -127,17 +161,27 @@ def maskcut_forward(feats, dims, scales, init_image_size, tau=0, N=3, cpu=False)
         if reverse:
             # reverse bipartition, eigenvector and get new seed
             eigenvec = eigenvec * -1
-            bipartition = np.logical_not(bipartition)
-            seed = np.argmax(eigenvec)
+            bipartition = torch.logical_not(bipartition)
+
+            if torch.is_complex(eigenvec):
+                eigenvec = torch.abs(eigenvec)
+            seed = torch.argmax(eigenvec)
         else:
-            seed = np.argmax(second_smallest_vec)
+            seed = torch.argmax(second_smallest_vec)
 
         # get pxiels corresponding to the seed
-        bipartition = bipartition.reshape(dims).astype(float)
-        _, _, _, cc = detect_box(bipartition, seed, dims, scales=scales, initial_im_size=init_image_size)
-        pseudo_mask = np.zeros(dims)
+        bipartition = bipartition.reshape(dims).to(torch.float32)
+        try:
+            bipartition_np = bipartition.cpu().numpy()
+            seed_np = seed.cpu().numpy()
+            _, _, _, cc = detect_box(bipartition_np, seed_np, dims, scales=scales, initial_im_size=init_image_size)
+        except Exception as e:
+            logger.error('Failed to detect box.')
+            logger.error(f'Error: {e}')
+            return None, None, None
+        pseudo_mask = torch.zeros(dims)
         pseudo_mask[cc[0],cc[1]] = 1
-        pseudo_mask = torch.from_numpy(pseudo_mask)
+        #pseudo_mask = torch.from_numpy(pseudo_mask)
         if not cpu: pseudo_mask = pseudo_mask.to('cuda')
         ps = pseudo_mask.shape[0]
 
@@ -145,24 +189,24 @@ def maskcut_forward(feats, dims, scales, init_image_size, tau=0, N=3, cpu=False)
         if i >= 1:
             ratio = torch.sum(pseudo_mask) / pseudo_mask.size()[0] / pseudo_mask.size()[1]
             if metric.IoU(current_mask, pseudo_mask) > 0.5 or ratio <= 0.01:
-                pseudo_mask = np.zeros(dims)
-                pseudo_mask = torch.from_numpy(pseudo_mask)
+                pseudo_mask = torch.zeros(dims)
+                #pseudo_mask = torch.from_numpy(pseudo_mask)
                 if not cpu: pseudo_mask = pseudo_mask.to('cuda')
         current_mask = pseudo_mask
 
         # mask out foreground areas in previous stages
-        masked_out = 0 if len(bipartitions) == 0 else np.sum(bipartitions, axis=0)
+        masked_out = 0 if len(bipartitions) == 0 else torch.sum(torch.stack(bipartitions), axis=0)
         bipartition = F.interpolate(pseudo_mask.unsqueeze(0).unsqueeze(0), size=init_image_size, mode='nearest').squeeze()
-        bipartition_masked = bipartition.cpu().numpy() - masked_out
+        bipartition_masked = bipartition - masked_out
         bipartition_masked[bipartition_masked <= 0] = 0
         bipartitions.append(bipartition_masked)
 
         # unsample the eigenvec
         eigvec = second_smallest_vec.reshape(dims)
-        eigvec = torch.from_numpy(eigvec)
+        #eigvec = torch.from_numpy(eigvec)
         if not cpu: eigvec = eigvec.to('cuda')
         eigvec = F.interpolate(eigvec.unsqueeze(0).unsqueeze(0), size=init_image_size, mode='nearest').squeeze()
-        eigvecs.append(eigvec.cpu().numpy())
+        eigvecs.append(eigvec)
 
     return seed, bipartitions, eigvecs
 
@@ -177,7 +221,12 @@ def maskcut(img_path, backbone,patch_size, tau, N=1, fixed_size=480, cpu=False) 
     if not cpu: tensor = tensor.cuda()
     feat = backbone(tensor)[0]
 
-    _, bipartition, eigvec = maskcut_forward(feat, [feat_h, feat_w], [patch_size, patch_size], [h,w], tau, N=N, cpu=cpu)
+    try:
+        _, bipartition, eigvec = maskcut_forward(feat, [feat_h, feat_w], [patch_size, patch_size], [h,w], tau, N=N, cpu=cpu)
+    except Exception as e:
+        logger.error('Failed to run MaskCut.')
+        logger.error(f'Error: {e}')
+        return [], [], I_new
 
     bipartitions += bipartition
     eigvecs += eigvec
@@ -351,8 +400,8 @@ if __name__ == "__main__":
     logger.info(msg)
     backbone.eval()
     if not args.cpu:
+        logger.info(f"Before loading model: {torch.cuda.memory_allocated() / (1024 ** 3):.2f} GB used")
         backbone.cuda()
-        logger.info('Using GPU...')
 
     img_folders = os.listdir(args.dataset_path)
 
@@ -375,24 +424,24 @@ if __name__ == "__main__":
             try:
                 bipartitions, _, I_new = maskcut(img_path, backbone, args.patch_size, \
                     args.tau, N=args.N, fixed_size=args.fixed_size, cpu=args.cpu)
-            except:
+            except Exception as e:
                 logger.info(f'Skipping {img_name}')
+                logger.error(f'Error: {e}')
                 continue
 
             I = Image.open(img_path).convert('RGB')
             width, height = I.size
             for idx, bipartition in enumerate(bipartitions):
                 # post-process pesudo-masks with CRF
-                pseudo_mask = densecrf(np.array(I_new), bipartition)
+                pseudo_mask = densecrf(np.array(I_new), bipartition.cpu())
                 pseudo_mask = ndimage.binary_fill_holes(pseudo_mask>=0.5)
 
                 # filter out the mask that have a very different pseudo-mask after the CRF
-                mask1 = torch.from_numpy(bipartition)
+                mask1 = bipartition
                 mask2 = torch.from_numpy(pseudo_mask)
                 if not args.cpu: 
                     mask1 = mask1.cuda()
                     mask2 = mask2.cuda()
-                    logger.info('Using GPU...')
                 if metric.IoU(mask1, mask2) < 0.5:
                     pseudo_mask = pseudo_mask * -1
 
