@@ -47,7 +47,7 @@ _PREDEFINED_SPLITS_COCO_CA["coco_cls_agnostic"] = {
 _PREDEFINED_SPLITS_IMAGENET = {}
 _PREDEFINED_SPLITS_IMAGENET["imagenet"] = {
     # maskcut annotations
-    "imagenet_train": ("imagenet/train", "imagenet/annotations/imagenet_train_fixsize480_tau0.15_N3.json"),
+    "imagenet_train": ("imagenet/train", "imagenet/annotations/imagenet_train_fixsize480_tau0.15_N1.json"),
     # self-training round 1
     "imagenet_train_r1": ("imagenet/train", "imagenet/annotations/cutler_imagenet1k_train_r1.json"),
     # self-training round 2
@@ -214,3 +214,11 @@ register_all_kitti(_root)
 register_all_openimages(_root)
 register_all_objects365(_root)
 register_all_lvis(_root)
+
+# Register custum dataset 
+register_coco_instances(
+    "labeled_video_frames",
+    {}, 
+    "/home/faiga/ColoCompare/data/OUS-Study-2019/test_video/coco_annotations.json",
+    "/home/faiga/ColoCompare/data/OUS-Study-2019/test_video" 
+)
