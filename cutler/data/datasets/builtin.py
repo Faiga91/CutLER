@@ -17,9 +17,13 @@ To add new dataset, refer to the tutorial "docs/DATASETS.md".
 """
 
 import os
-
+import cv2
+import glob
+import torch
 from .builtin_meta import _get_builtin_metadata
 from .coco import register_coco_instances
+from detectron2.data import DatasetCatalog, MetadataCatalog
+from detectron2.structures import Instances, Boxes
 
 # ==== Predefined datasets and splits for COCO ==========
 
@@ -215,10 +219,45 @@ register_all_openimages(_root)
 register_all_objects365(_root)
 register_all_lvis(_root)
 
-# Register custum dataset 
+# Register custom dataset 
 register_coco_instances(
-    "OUS-labeled",
+    "OUS-test",
     {}, 
-    "/dataset/OUS_labeled/coco_annotations.json",
-    "/dataset/OUS_labeled/frames" 
+    "/dataset/OUS_labeled/coco_annotations_adjusted.json",
+    "/dataset/OUS_labeled/test_videos/" 
 )
+
+# Register training dataset without annotations
+image_root = "/dataset/our-dataset/imagenet/train"
+file_paths = glob.glob(os.path.join(image_root, '**', '*.jpg'), recursive=True)
+
+def get_unlabeled_dataset():
+    dataset_dicts = []
+    for idx, img_path in enumerate(file_paths):
+        img = cv2.imread(img_path)
+        if img is None:
+            continue
+        
+        height, width = img.shape[:2]
+
+        record = {}
+        record["file_name"] = img_path
+        record["image_id"] = idx
+        record["height"] = height
+        record["width"] = width
+
+        # Create an empty Instances object
+        instances = Instances((height, width))
+        instances.gt_boxes = Boxes(torch.zeros((0, 4)))
+        instances.gt_classes = torch.zeros((0,), dtype=torch.int64)
+
+        record["instances"] = instances
+
+        dataset_dicts.append(record)
+    return dataset_dicts
+
+
+DatasetCatalog.register("OUS-train", get_unlabeled_dataset)
+OUS_classes = ["Polyp"]
+MetadataCatalog.get("OUS-train").set(thing_classes=OUS_classes)
+

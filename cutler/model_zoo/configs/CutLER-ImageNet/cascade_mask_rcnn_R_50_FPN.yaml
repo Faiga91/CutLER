@@ -33,13 +33,13 @@ MODEL:
     POST_NMS_TOPK_TRAIN: 4000
     NMS_THRESH: 0.65
 DATASETS:
-  TRAIN: ("imagenet_train",)
-  TEST: ("OUS-labeled", )
+  TRAIN: ("OUS-train",)
+  TEST: ("OUS-test", )
 SOLVER:
   IMS_PER_BATCH: 16
   BASE_LR: 0.01
   WEIGHT_DECAY: 0.00005
-  MAX_ITER: 2000
+  MAX_ITER: 200
   GAMMA: 0.02
   CLIP_GRADIENTS:
     CLIP_TYPE: norm
@@ -56,6 +56,6 @@ INPUT:
 TEST:
   PRECISE_BN:
     ENABLED: True
-    NUM_ITER: 50
+    NUM_ITER: 20
   DETECTIONS_PER_IMAGE: 1
 OUTPUT_DIR: "../../results/cutler_model"
