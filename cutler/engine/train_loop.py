@@ -311,9 +311,9 @@ class CustomAMPTrainer(CustomSimpleTrainer):
             visualize_copy_paste=visualize_copy_paste)
 
         if grad_scaler is None:
-            from torch.cuda.amp import GradScaler
+            from torch.amp import GradScaler
 
-            grad_scaler = GradScaler()
+            grad_scaler = GradScaler(device='cuda')
         self.grad_scaler = grad_scaler
 
     def run_step(self):
