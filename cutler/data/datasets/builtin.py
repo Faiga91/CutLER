@@ -223,41 +223,14 @@ register_all_lvis(_root)
 register_coco_instances(
     "OUS-test",
     {}, 
-    "/dataset/OUS_labeled/coco_annotations_adjusted.json",
+    "/dataset/OUS_labeled/coco_annotations_XYWH.json",
     "/dataset/OUS_labeled/test_videos/" 
 )
 
-# Register training dataset without annotations
-image_root = "/dataset/our-dataset/imagenet/train"
-file_paths = glob.glob(os.path.join(image_root, '**', '*.jpg'), recursive=True)
 
-def get_unlabeled_dataset():
-    dataset_dicts = []
-    for idx, img_path in enumerate(file_paths):
-        img = cv2.imread(img_path)
-        if img is None:
-            continue
-        
-        height, width = img.shape[:2]
-
-        record = {}
-        record["file_name"] = img_path
-        record["image_id"] = idx
-        record["height"] = height
-        record["width"] = width
-
-        # Create an empty Instances object
-        instances = Instances((height, width))
-        instances.gt_boxes = Boxes(torch.zeros((0, 4)))
-        instances.gt_classes = torch.zeros((0,), dtype=torch.int64)
-
-        record["instances"] = instances
-
-        dataset_dicts.append(record)
-    return dataset_dicts
-
-
-DatasetCatalog.register("OUS-train", get_unlabeled_dataset)
-OUS_classes = ["Polyp"]
-MetadataCatalog.get("OUS-train").set(thing_classes=OUS_classes)
-
+register_coco_instances(
+    "OUS-train",
+    {}, 
+    "/dataset/our-dataset/imagenet/annotations/imagenet_train_fixsize480_tau0.15_N3.json",
+    "/dataset/our-dataset/imagenet/train" 
+)
