@@ -7,7 +7,7 @@ https://github.com/rwightman/pytorch-image-models/blob/master/timm/models/vision
 """
 import math
 from functools import partial
-
+import torch.nn.functional as F
 import torch
 import torch.nn as nn
 
@@ -290,7 +290,20 @@ class ViTFeat(nn.Module):
 
 #        state_dict = torch.load(pretrained_pth, map_location="cpu")
         state_dict = torch.hub.load_state_dict_from_url(pretrained_pth)
-        self.model.load_state_dict(state_dict, strict=True)
+
+        # Filter out unexpected keys
+        state_dict = {k: v for k, v in state_dict.items() if "gamma" not in k and k not in ["register_tokens", "mask_token"]}
+
+        # Handle pos_embed size mismatch by interpolating
+        if 'pos_embed' in state_dict:
+            pos_embed_checkpoint = state_dict['pos_embed']
+            pos_embed_checkpoint = pos_embed_checkpoint.reshape(1, 1370, -1)  # Flatten to 2D
+            pos_embed_new = F.interpolate(pos_embed_checkpoint.permute(0, 2, 1),
+                                          size=(257,), mode='linear', align_corners=False)
+            state_dict['pos_embed'] = pos_embed_new.permute(0, 2, 1)  # Restore original dimensions
+
+
+        self.model.load_state_dict(state_dict, strict=False)
         print('Loading weight from {}'.format(pretrained_pth))
 
 
