@@ -367,7 +367,7 @@ if __name__ == "__main__":
     parser.add_argument('--out-dir', type=str, help='output directory')
     parser.add_argument('--vit-arch', type=str, default='small', choices=['base', 'small'], help='which architecture')
     parser.add_argument('--vit-feat', type=str, default='k', choices=['k', 'q', 'v', 'kqv'], help='which features')
-    parser.add_argument('--patch-size', type=int, default=16, choices=[16, 8], help='patch size')
+    parser.add_argument('--patch-size', type=int, default=16, choices=[16, 8, 14], help='patch size')
     parser.add_argument('--nb-vis', type=int, default=20, choices=[1, 200], help='nb of visualization')
     parser.add_argument('--img-path', type=str, default=None, help='single image visualization')
 
@@ -385,13 +385,13 @@ if __name__ == "__main__":
 
     if args.pretrain_path is not None:
         url = args.pretrain_path
-    if args.vit_arch == 'base' and args.patch_size == 8:
+    if args.vit_arch == 'base' and args.patch_size == 14:
         if args.pretrain_path is None:
-            url = "https://dl.fbaipublicfiles.com/dino/dino_vitbase8_pretrain/dino_vitbase8_pretrain.pth"
+            url = "https://dl.fbaipublicfiles.com/dinov2/dinov2_vitb14/dinov2_vitb14_reg4_pretrain.pth"
         feat_dim = 768
-    elif args.vit_arch == 'small' and args.patch_size == 8:
+    elif args.vit_arch == 'small' and args.patch_size == 14:
         if args.pretrain_path is None:
-            url = "https://dl.fbaipublicfiles.com/dino/dino_deitsmall8_300ep_pretrain/dino_deitsmall8_300ep_pretrain.pth"
+            url = "https://dl.fbaipublicfiles.com/dinov2/dinov2_vits14/dinov2_vits14_reg4_pretrain.pth"
         feat_dim = 384
 
     backbone = dino.ViTFeat(url, feat_dim, args.vit_arch, args.vit_feat, args.patch_size)
